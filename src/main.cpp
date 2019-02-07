@@ -17,12 +17,41 @@ AirQualitySensor omron(D4, D5);
 NovaSDS011 nova(&novaSerial);
 // TODO: Sharp sensor
 
-uint8_t data[32];
-
 struct PmValues {
   float pm10;
   float pm2_5;
 };
+
+struct Dataset {
+  PmValues omron;
+  PmValues nova;
+  PmValues sharp;
+};
+
+void sendMessage(Dataset data)
+{
+  LoRaMessage message;
+
+  message
+    .addUint16(data.omron.pm10)
+    .addUint16(data.omron.pm2_5)
+    .addUint16(data.nova.pm10)
+    .addUint16(data.nova.pm2_5)
+    .addUint16(data.sharp.pm10)
+    .addUint16(data.sharp.pm2_5);
+
+  node.send(message.getMessage(), message.getLength());
+}
+
+void logData(Dataset data)
+{
+  pc.printf("measuring ready\r\n");
+  pc.printf("|   Sensor    |   PM10   |   PM2.5  |\r\n");
+  pc.printf("|-------------|----------|----------|\r\n");
+  pc.printf("| Omron       | %8.1f | %8.1f |\r\n", data.omron.pm10, data.omron.pm2_5);
+  pc.printf("| Nova        | %8.1f | %8.1f |\r\n", data.nova.pm10, data.nova.pm2_5);
+  pc.printf("| Sharp       | %8.1f | %8.1f |\r\n", data.sharp.pm10, data.sharp.pm2_5);
+}
 
 int main(void)
 {
@@ -39,37 +68,13 @@ int main(void)
 
     nova.read();
 
-    PmValues omronValues = { (float) omron.getPM10(), (float) omron.getPM2_5() };
-    PmValues novaValues = { nova.getPM10(), nova.getPM2_5() };
-    PmValues sharpValues = { 0.0, 0.0 };
+    Dataset dataset = {
+      { (float) omron.getPM10(), (float) omron.getPM2_5() },
+      { nova.getPM10(), nova.getPM2_5() },
+      { 0.0, 0.0 }
+    };
 
-
-    pc.printf("measuring ready\r\n");
-    pc.printf("|   Sensor    |   PM10   |   PM2.5  |\r\n");
-    pc.printf("|-------------|----------|----------|\r\n");
-    pc.printf("| Omron       | %8.1f | %8.1f |\r\n", omronValues.pm10, omronValues.pm2_5);
-    pc.printf("| Nova        | %8.1f | %8.1f |\r\n", novaValues.pm10, novaValues.pm2_5);
-    pc.printf("| Sharp       | %8.1f | %8.1f |\r\n", sharpValues.pm10, sharpValues.pm2_5);
-
-    // int pm10 = sensor.getPM10();
-    // int pm2_5 = sensor.getPM2_5();
-
-    LoRaMessage message;
-
-    message
-      .addUint16(omronValues.pm10)
-      .addUint16(omronValues.pm2_5)
-      .addUint16(novaValues.pm10)
-      .addUint16(novaValues.pm2_5)
-      .addUint16(sharpValues.pm10)
-      .addUint16(sharpValues.pm2_5);
-
-    
-    // data[0] = (pm10 >> 8) & 0xFF;
-    // data[1] = (pm10 >> 0) & 0xFF;
-    // data[2] = (pm2_5 >> 8) & 0xFF;
-    // data[3] = (pm2_5 >> 0) & 0xFF;
-
-    node.send(message.getMessage(), message.getLength());
+    logData(dataset);
+    sendMessage(dataset);
   }
 }
